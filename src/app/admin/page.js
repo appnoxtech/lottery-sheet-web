@@ -956,7 +956,7 @@ Status: ${req.status}
           <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">Pending Admin Approvals</h1>
-              <p className="text-slate-500 mt-1">Review and approve new admin registrations for Curacao Lottery</p>
+              <p className="text-slate-500 mt-1">Review and approve new admin registrations</p>
             </div>
 
             <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-2xl">

@@ -44,13 +44,7 @@ export default function Home() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleNumberChange = (index, value) => {
-    const newNumbers = [...numbers];
-    newNumbers[index] = value;
-    setNumbers(newNumbers);
-  };
 
-  const addNumberField = () => setNumbers([...numbers, '']);
   const removeNumberField = (index) => {
     setNumbers(numbers.filter((_, i) => i !== index));
   };
@@ -113,7 +107,7 @@ export default function Home() {
         lottery_type: 'Daily',
         notes: '',
       });
-      setNumbers(['']);
+      setNumbers([]);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to submit request');
     } finally {
