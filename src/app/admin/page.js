@@ -7,7 +7,7 @@ import {
   LogOut, CheckCircle, Clock, Filter, Ticket,
   ChevronDown, Download, FileText, Table as TableIcon,
   FileSpreadsheet, CheckSquare, Square, Trash2, X,
-  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus
+  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus, Languages, RefreshCw
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -31,6 +31,7 @@ export default function AdminDashboard() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [shareModalData, setShareModalData] = useState({ platform: 'email', email: '', message: '', format: 'pdf' });
   const [isSendingShare, setIsSendingShare] = useState(false);
+  const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
   const [lotteryTypes, setLotteryTypes] = useState([]);
   const [newTypeName, setNewTypeName] = useState('');
   const [isAddingType, setIsAddingType] = useState(false);
@@ -45,6 +46,76 @@ export default function AdminDashboard() {
     min_amount: '',
     max_amount: ''
   });
+
+  // Currency Conversion State
+  const [viewCurrency, setViewCurrency] = useState('original'); // 'original', 'USD', 'EUR', 'XCD'
+  const [exchangeRates, setExchangeRates] = useState(null);
+  const [isFetchingRates, setIsFetchingRates] = useState(false);
+
+  const fetchRates = async () => {
+    if (exchangeRates) return;
+    setIsFetchingRates(true);
+    try {
+      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+      const data = await response.json();
+      setExchangeRates(data.rates);
+    } catch (error) {
+      console.error('Failed to fetch rates', error);
+      toast.error('Failed to fetch real-time exchange rates');
+    } finally {
+      setIsFetchingRates(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isCurrencyMenuOpen && !event.target.closest('.currency-dropdown-container')) {
+        setIsCurrencyMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCurrencyMenuOpen]);
+
+  const getCurrencySymbol = (code) => {
+    if (code === 'USD') return '$';
+    if (code === 'EUR') return '€';
+    if (code === 'XCD') return 'Cg';
+    return code;
+  };
+
+  const getCurrencyName = (code) => {
+    if (code === 'USD') return 'USD';
+    if (code === 'EUR') return 'EURO';
+    if (code === 'XCD') return 'XCG';
+    return code;
+  };
+
+  const convertAmount = (amount, fromCurrencyCode, toCurrencyCode) => {
+    if (!exchangeRates || toCurrencyCode === 'original') return { amount, symbol: fromCurrencyCode };
+    
+    // Map internal codes to ISO codes for API
+    const mapToIso = (code) => {
+      if (code === '$') return 'USD';
+      if (code === '€') return 'EUR';
+      if (code === 'Cg') return 'XCD';
+      return code;
+    };
+
+    const fromIso = mapToIso(fromCurrencyCode);
+    const toIso = toCurrencyCode;
+
+    if (!exchangeRates[fromIso] || !exchangeRates[toIso]) return { amount, symbol: fromCurrencyCode };
+
+    const amountInUsd = amount / exchangeRates[fromIso];
+    const converted = amountInUsd * exchangeRates[toIso];
+    
+    return { 
+      amount: converted, 
+      symbol: getCurrencySymbol(toIso),
+      name: getCurrencyName(toIso)
+    };
+  };
 
   const superAdminEmail = 'master@example.com'; // Should match backend
 
@@ -189,9 +260,9 @@ export default function AdminDashboard() {
 -------------------
 Name: ${req.name}
 Email: ${req.email}
-Phone: ${req.phone}
+Phone: ${req.country_code} ${req.phone}
 Numbers: ${req.lottery_numbers.join(', ')}
-Amount: $${req.amount}
+Amount: ${req.currency}${req.amount}
 Type: ${req.lottery_type}
 Status: ${req.status}
 -------------------`;
@@ -217,7 +288,7 @@ Status: ${req.status}
 
     let message = `Lottery Requests Summary (${selectedData.length} items):\n\n`;
     selectedData.forEach((req, idx) => {
-      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | $${req.amount} | ${req.status}\n`;
+      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.currency}${req.amount} | ${req.status}\n`;
     });
     message += `\nGenerated on: ${new Date().toLocaleString()}`;
 
@@ -289,7 +360,7 @@ Status: ${req.status}
 
       let message = `${shareModalData.message ? shareModalData.message + '\n\n' : ''}Lottery Requests Summary (${selectedData.length} items):\n`;
       selectedData.forEach((req, idx) => {
-        message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | $${req.amount}\n`;
+        message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.currency}${req.amount}\n`;
       });
 
       const encodedMessage = encodeURIComponent(message);
@@ -406,9 +477,9 @@ Status: ${req.status}
       'Date': new Date(r.created_at).toLocaleDateString(),
       'Name': r.name,
       'Email': r.email,
-      'Phone': r.phone,
+      'Phone': `${r.country_code} ${r.phone}`,
       'Numbers': r.lottery_numbers.join(', '),
-      'Amount': `$${r.amount}`,
+      'Amount': `${r.currency}${r.amount}`,
       'Type': r.lottery_type,
       'Status': r.status,
       'Notes': r.notes || ''
@@ -757,7 +828,7 @@ Status: ${req.status}
 
                       {/* Min Amount */}
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Min Amount ($)</label>
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Min Amount</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <DollarSign size={14} />
@@ -775,7 +846,7 @@ Status: ${req.status}
 
                       {/* Max Amount */}
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Max Amount ($)</label>
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Max Amount</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <DollarSign size={14} />
@@ -829,7 +900,48 @@ Status: ${req.status}
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Numbers</th>
-                      <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount / Type</th>
+                      <th className="py-5 px-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount / Type</span>
+                          <div className="relative currency-dropdown-container">
+                            <button 
+                              onClick={() => setIsCurrencyMenuOpen(!isCurrencyMenuOpen)}
+                              className={`p-1 rounded-md transition-all flex items-center gap-1 ${viewCurrency !== 'original' ? 'bg-primary/20 text-primary border border-primary/20' : 'hover:bg-slate-200/50 text-slate-400 border border-transparent'}`}
+                              title="Change viewing currency"
+                            >
+                              <ChevronDown size={14} className={`transition-transform duration-200 ${isCurrencyMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            <AnimatePresence>
+                              {isCurrencyMenuOpen && (
+                                <motion.div 
+                                  initial={{ opacity: 0, y: 5 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: 5 }}
+                                  className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 min-w-[110px] overflow-hidden"
+                                >
+                                  {['original', 'USD', 'EUR', 'XCD'].map((curr) => (
+                                    <button
+                                      key={curr}
+                                      onClick={() => {
+                                        setViewCurrency(curr);
+                                        setIsCurrencyMenuOpen(false);
+                                        if (curr !== 'original') {
+                                          fetchRates();
+                                        }
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${viewCurrency === curr ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-600'}`}
+                                    >
+                                      {curr === 'original' ? 'Default' : getCurrencyName(curr)}
+                                    </button>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                          {isFetchingRates && <RefreshCw size={12} className="animate-spin text-primary" />}
+                        </div>
+                      </th>
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                       <th className="py-5 px-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
                     </tr>
@@ -894,7 +1006,7 @@ Status: ${req.status}
                             <div className="flex flex-col">
                               <span className="text-sm font-black text-slate-900 group-hover:text-primary transition-colors">{request.name}</span>
                               <span className="text-[10px] text-slate-500 font-medium">{request.email}</span>
-                              <span className="text-[10px] text-slate-400 font-bold tracking-wider mt-0.5">{request.phone}</span>
+                              <span className="text-[10px] text-slate-400 font-bold tracking-wider mt-0.5">{request.country_code} {request.phone}</span>
                             </div>
                           </td>
                           <td className="py-5 px-6">
@@ -913,7 +1025,21 @@ Status: ${req.status}
                           </td>
                           <td className="py-5 px-6">
                             <div className="flex flex-col">
-                              <span className="text-base font-black text-slate-900">${parseFloat(request.amount).toFixed(2)}</span>
+                              <span className="text-base font-black text-slate-900 flex flex-col">
+                                {(() => {
+                                  const { amount, symbol } = convertAmount(request.amount, request.currency, viewCurrency);
+                                  return (
+                                    <>
+                                      <span>{symbol}{parseFloat(amount).toFixed(2)}</span>
+                                      {viewCurrency !== 'original' && (
+                                        <span className="text-[8px] text-primary/60 font-black uppercase tracking-tighter mt-0.5">
+                                          {request.currency}{parseFloat(request.amount).toFixed(2)}
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </span>
                               {request.lottery_type && (
                                 <span className="text-[10px] font-black uppercase tracking-[0.1em] mt-1.5 px-2.5 py-0.5 rounded-lg w-fit shadow-sm border bg-primary/10 text-primary border-primary/10">
                                   {request.lottery_type}

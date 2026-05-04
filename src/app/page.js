@@ -3,23 +3,55 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, Ticket, CheckCircle, ArrowLeft, X, Check } from 'lucide-react';
+import { Plus, Trash2, Send, Ticket, CheckCircle, ArrowLeft, X, Check, ChevronDown, Search } from 'lucide-react';
 import api from '@/lib/api';
+import { countries as COUNTRY_DATA } from '@/data/countries';
 
 export default function Home() {
   const [formData, setFormData] = useState({
     name: '',
+    country_code: '+1',
     phone: '',
     email: '',
     amount: '',
+    currency: '$',
     lottery_type: 'Daily',
     notes: '',
   });
+
+  const CURRENCIES = [
+    { code: '$', name: 'USD', display: 'USD $' },
+    { code: '€', name: 'EURO', display: 'EURO €' },
+    { code: 'Cg', name: 'XCG', display: 'XCG Cg' }
+  ];
+
+  const COUNTRY_CODES = COUNTRY_DATA;
 
   const [numbers, setNumbers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
+  
+  // Searchable Country Dropdown State
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  const filteredCountries = COUNTRY_DATA.filter(c => 
+    c.name.toLowerCase().includes(countrySearch.toLowerCase()) || 
+    c.code.includes(countrySearch)
+  );
+
+  const selectedCountry = COUNTRY_DATA.find(c => c.code === formData.country_code) || COUNTRY_DATA[0];
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isCountryDropdownOpen && !event.target.closest('.country-dropdown-container')) {
+        setIsCountryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCountryDropdownOpen]);
+
   const [lotteryTypes, setLotteryTypes] = useState([]);
 
   useEffect(() => {
@@ -64,9 +96,9 @@ export default function Home() {
       return;
     }
 
-    // Validation: Phone (Numerical only)
-    if (!/^\d+$/.test(formData.phone)) {
-      toast.error('Phone number should contain numerical values only');
+    // Validation: Phone (7 to 15 digits)
+    if (!/^\d{7,15}$/.test(formData.phone)) {
+      toast.error('Phone number should contain between 7 and 15 numerical values only');
       return;
     }
 
@@ -81,6 +113,12 @@ export default function Home() {
     const nonNumeric = validNumbers.filter(n => !/^\d+$/.test(n));
     if (nonNumeric.length > 0) {
       toast.error('Lottery numbers should contain numerical values only');
+      return;
+    }
+
+    // Validation: Amount limit
+    if (parseFloat(formData.amount) > 1000000) {
+      toast.error('The amount exceeds the maximum allowed limit of 1,000,000');
       return;
     }
 
@@ -101,15 +139,24 @@ export default function Home() {
       // Reset form
       setFormData({
         name: '',
+        country_code: '+1',
         phone: '',
         email: '',
         amount: '',
+        currency: '$',
         lottery_type: 'Daily',
         notes: '',
       });
       setNumbers([]);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to submit request');
+      const errorData = error.response?.data;
+      if (errorData?.errors) {
+        // Show the first validation error message
+        const firstError = Object.values(errorData.errors)[0][0];
+        toast.error(firstError);
+      } else {
+        toast.error(errorData?.message || 'Failed to submit request');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -137,7 +184,7 @@ export default function Home() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
                   <input
@@ -153,17 +200,93 @@ export default function Home() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    required
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-400"
-                    placeholder="1234567890"
-                  />
+                  <div className="flex gap-3">
+                    <div className="relative min-w-[120px] country-dropdown-container">
+                      <div 
+                        onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all cursor-pointer flex items-center gap-2 h-full"
+                      >
+                        <img 
+                          src={`https://flagcdn.com/w40/${selectedCountry.iso.toLowerCase()}.png`} 
+                          alt={selectedCountry.name}
+                          className="w-5 h-auto rounded-sm shadow-sm"
+                        />
+                        <span className="text-sm">{selectedCountry.code}</span>
+                      </div>
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${isCountryDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      <AnimatePresence>
+                        {isCountryDropdownOpen && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                          >
+                            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input 
+                                  type="text"
+                                  placeholder="Search country..."
+                                  value={countrySearch}
+                                  onChange={(e) => setCountrySearch(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all"
+                                  autoFocus
+                                />
+                              </div>
+                            </div>
+                            <div className="max-h-[300px] overflow-y-auto">
+                              {filteredCountries.length > 0 ? (
+                                filteredCountries.map((country) => (
+                                  <div 
+                                    key={`${country.name}-${country.code}`}
+                                    onClick={() => {
+                                      setFormData({ ...formData, country_code: country.code });
+                                      setIsCountryDropdownOpen(false);
+                                      setCountrySearch('');
+                                    }}
+                                    className={`flex items-center gap-3 px-4 py-3 hover:bg-primary/5 cursor-pointer transition-colors ${formData.country_code === country.code ? 'bg-primary/10 text-primary' : 'text-slate-700'}`}
+                                  >
+                                    <img 
+                                      src={`https://flagcdn.com/w40/${country.iso.toLowerCase()}.png`} 
+                                      alt={country.name}
+                                      className="w-6 h-auto rounded-sm shadow-sm"
+                                    />
+                                    <div className="flex flex-col">
+                                      <span className="text-[10px] font-black uppercase tracking-wider leading-none mb-1">{country.name}</span>
+                                      <span className="text-sm font-bold opacity-70 leading-none">{country.code}</span>
+                                    </div>
+                                    {formData.country_code === country.code && (
+                                      <Check className="ml-auto" size={16} />
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-8 text-center text-slate-400">
+                                  <p className="text-sm font-medium italic">No countries found</p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    <input
+                      type="tel"
+                      name="phone"
+                      required
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-400"
+                      placeholder="1234567890"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -254,20 +377,39 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Amount ($)</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    min="0.01"
-                    step="0.01"
-                    required
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary transition-all placeholder:text-slate-400"
-                    placeholder="5.00"
-                  />
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Amount ({formData.currency})
+                  </label>
+                  <div className="flex gap-3">
+                    <div className="relative min-w-[120px]">
+                      <select
+                        name="currency"
+                        value={formData.currency}
+                        onChange={handleInputChange}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all appearance-none cursor-pointer text-xs h-full"
+                      >
+                        {CURRENCIES.map((c) => (
+                          <option key={c.code} value={c.code}>{c.display}</option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      name="amount"
+                      min="0.01"
+                      step="0.01"
+                      required
+                      value={formData.amount}
+                      onChange={handleInputChange}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-400"
+                      placeholder="5.00"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Lottery Type</label>
@@ -339,8 +481,19 @@ export default function Home() {
                   <span className="text-sm font-black text-slate-900 uppercase tracking-wider">{submittedData?.lottery_type}</span>
                 </div>
                 <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
+                  <span className="text-sm text-slate-500 font-medium">Phone Number</span>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={`https://flagcdn.com/w40/${COUNTRY_DATA.find(c => c.code === submittedData?.country_code)?.iso.toLowerCase()}.png`} 
+                      alt=""
+                      className="w-4 h-auto rounded-sm"
+                    />
+                    <span className="text-sm font-black text-slate-900">{submittedData?.country_code} {submittedData?.phone}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
                   <span className="text-sm text-slate-500 font-medium">Total Amount</span>
-                  <span className="text-lg font-black text-primary">${parseFloat(submittedData?.amount).toFixed(2)}</span>
+                  <span className="text-lg font-black text-primary">{submittedData?.currency}{parseFloat(submittedData?.amount).toFixed(2)}</span>
                 </div>
                 <div>
                   <span className="text-sm text-slate-500 font-medium block mb-3">Numbers Entered</span>
