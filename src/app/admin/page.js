@@ -332,13 +332,32 @@ Status: ${req.status}
   };
 
   const handleProcess = async (id) => {
-    try {
-      await api.patch(`/admin/requests/${id}/process`, { status: 'processed' });
-      toast.success('Request marked as processed');
-      setRequests(requests.map(req => req.id === id ? { ...req, status: 'processed' } : req));
-    } catch (error) {
-      toast.error('Failed to update status');
+    console.log('Attempting to process request with ID:', id);
+    if (!id) {
+      toast.error('Invalid request ID');
+      return;
     }
+
+    // Temporary alert to confirm the button is working
+    // window.alert('Processing request: ' + id);
+
+    const processPromise = api.patch(`/admin/requests/${id}/process`, { status: 'processed' });
+
+    toast.promise(processPromise, {
+      loading: 'Updating status...',
+      success: (response) => {
+        setRequests(prevRequests => 
+          prevRequests.map(req => 
+            String(req.id) === String(id) ? { ...req, status: 'processed' } : req
+          )
+        );
+        return 'Request marked as processed';
+      },
+      error: (err) => {
+        console.error('Process error:', err);
+        return err.response?.data?.message || 'Failed to update status';
+      }
+    });
   };
 
   // Selection Logic
@@ -914,7 +933,11 @@ Status: ${req.status}
                           <td className="py-5 px-6 text-right">
                             {request.status === 'pending' && (
                               <button
-                                onClick={() => handleStatusUpdate(request.id, 'processed')}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProcess(request.id);
+                                }}
                                 className="bg-primary hover:opacity-90 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-primary/20 border border-primary/20"
                               >
                                 Process Now
