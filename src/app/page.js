@@ -723,7 +723,9 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
                   <span className="text-sm text-slate-500 font-medium">Lottery Type</span>
-                  <span className="text-sm font-black text-slate-900 uppercase tracking-wider">{submittedData?.lottery_type}</span>
+                  <span className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    {submittedData?.lottery_selections?.join(', ') || 'N/A'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
                   <span className="text-sm text-slate-500 font-medium">Phone Number</span>
@@ -734,16 +736,6 @@ export default function Home() {
                       className="w-4 h-auto rounded-sm"
                     />
                     <span className="text-sm font-black text-slate-900">{submittedData?.country_code} {submittedData?.phone}</span>
-                  </div>
-                </div>
-                <div className="pb-3 border-b border-slate-200/50">
-                  <span className="text-sm text-slate-500 font-medium block mb-2">Selected Lotteries</span>
-                  <div className="flex flex-wrap gap-2">
-                    {submittedData?.lottery_selections?.map((lottery, i) => (
-                      <span key={i} className="px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-sm font-bold rounded-xl">
-                        {lottery}
-                      </span>
-                    ))}
                   </div>
                 </div>
                 <div className="pb-3 border-b border-slate-200/50">

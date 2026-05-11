@@ -258,9 +258,8 @@ Name: ${req.name}
 Email: ${req.email}
 Phone: ${req.country_code} ${req.phone}
 Numbers: ${req.lottery_numbers.join(', ')}
-Lotteries: ${req.lottery_selections?.join(', ') || 'N/A'}
 Number Types: ${req.number_types?.join(', ') || 'N/A'}
-Type: ${req.lottery_type}
+Type: ${req.lottery_selections?.join(', ') || 'N/A'}
 Status: ${req.status}
 -------------------`;
 
@@ -285,7 +284,7 @@ Status: ${req.status}
 
     let message = `Lottery Requests Summary (${selectedData.length} items):\n\n`;
     selectedData.forEach((req, idx) => {
-      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_type} | ${req.status}\n`;
+      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_selections?.join(', ') || 'N/A'} | ${req.status}\n`;
     });
     message += `\nGenerated on: ${new Date().toLocaleString()}`;
 
@@ -339,7 +338,7 @@ Status: ${req.status}
 
     let message = `Lottery Requests Summary (${selectedData.length} items):\n\n`;
     selectedData.forEach((req, idx) => {
-      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_type} | ${req.status}\n`;
+      message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_selections?.join(', ') || 'N/A'} | ${req.status}\n`;
     });
     message += `\nGenerated on: ${new Date().toLocaleString()}`;
 
@@ -357,7 +356,7 @@ Status: ${req.status}
 
       let message = `${shareModalData.message ? shareModalData.message + '\n\n' : ''}Lottery Requests Summary (${selectedData.length} items):\n`;
       selectedData.forEach((req, idx) => {
-        message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_type} | ${req.status}\n`;
+        message += `${idx + 1}. ${req.name} | ${req.lottery_numbers.join(', ')} | ${req.lottery_selections?.join(', ') || 'N/A'} | ${req.status}\n`;
       });
 
       const encodedMessage = encodeURIComponent(message);
@@ -476,9 +475,8 @@ Status: ${req.status}
       'Email': r.email,
       'Phone': `${r.country_code} ${r.phone}`,
       'Numbers': r.lottery_numbers.join(', '),
-      'Lotteries': r.lottery_selections?.join(', ') || '',
       'Number Types': r.number_types?.join(', ') || '',
-      'Type': r.lottery_type,
+      'Type': r.lottery_selections?.join(', ') || '',
       'Status': r.status,
       'Notes': r.notes || ''
     }));
@@ -864,7 +862,7 @@ Status: ${req.status}
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Numbers</th>
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
                       <th className="py-5 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                      <th className="py-5 px-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                      <th className="py-5 px-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[140px]">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -943,9 +941,9 @@ Status: ${req.status}
                             </div>
                           </td>
                           <td className="py-5 px-6">
-                            {request.lottery_type && (
+                            {request.lottery_selections && request.lottery_selections.length > 0 && (
                               <span className="text-[10px] font-black uppercase tracking-[0.1em] px-2.5 py-1 rounded-lg shadow-sm border bg-primary/10 text-primary border-primary/10">
-                                {request.lottery_type}
+                                {Array.isArray(request.lottery_selections) ? request.lottery_selections.join(', ') : request.lottery_selections}
                               </span>
                             )}
                           </td>
@@ -958,7 +956,7 @@ Status: ${req.status}
                               {request.status}
                             </div>
                           </td>
-                          <td className="py-5 px-6 text-right">
+                          <td className="py-5 px-6 text-right min-w-[140px]">
                             {request.status === 'pending' && (
                               <button
                                 type="button"
@@ -966,7 +964,7 @@ Status: ${req.status}
                                   e.stopPropagation();
                                   handleProcess(request.id);
                                 }}
-                                className="bg-primary hover:opacity-90 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-primary/20 border border-primary/20"
+                                className="bg-primary hover:opacity-90 text-white px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-primary/20 border border-primary/20 whitespace-nowrap"
                               >
                                 Process Now
                               </button>
