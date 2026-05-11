@@ -13,16 +13,33 @@ export default function Home() {
     country_code: '+1',
     phone: '',
     email: '',
-    amount: '',
-    currency: '$',
+    // currency: '$', // Commented out - not needed for current flow
     lottery_type: 'Daily',
     notes: '',
+    lottery_selections: [],
+    number_types: [],
   });
 
   const CURRENCIES = [
     { code: '$', name: 'USD', display: 'USD $' },
     { code: '€', name: 'EURO', display: 'EURO €' },
     { code: 'Cg', name: 'XCG', display: 'XCG Cg' }
+  ];
+
+  // Lottery options from admin configuration
+  const [availableLotteries, setAvailableLotteries] = useState([]);
+  const [lotterySearch, setLotterySearch] = useState('');
+  const [showAllLotteries, setShowAllLotteries] = useState(false);
+  const INITIAL_LOTTERY_COUNT = 8;
+
+  // Phone validation state
+  const [phoneError, setPhoneError] = useState('');
+  const [isPhoneValid, setIsPhoneValid] = useState(false);
+
+  const NUMBER_TYPE_OPTIONS = [
+    '4 digits',
+    '3 digits',
+    '2 digits'
   ];
 
   const COUNTRY_CODES = COUNTRY_DATA;
@@ -59,13 +76,16 @@ export default function Home() {
       try {
         const response = await api.get('/lottery-types?active_only=1');
         setLotteryTypes(response.data);
+        setAvailableLotteries(response.data.map(t => t.name));
         if (response.data.length > 0) {
           setFormData(prev => ({ ...prev, lottery_type: response.data[0].name }));
         }
       } catch (error) {
         console.error('Failed to fetch lottery types', error);
         // Fallback
-        setLotteryTypes([{ name: 'Daily' }, { name: 'Weekly' }, { name: 'Special' }]);
+        const fallback = [{ name: 'Daily' }, { name: 'Weekly' }, { name: 'Special' }];
+        setLotteryTypes(fallback);
+        setAvailableLotteries(fallback.map(t => t.name));
       }
     };
     fetchTypes();
@@ -73,7 +93,82 @@ export default function Home() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Special handling for phone input
+    if (name === 'phone') {
+      // Allow only digits, spaces, hyphens, parentheses, and + for country code part
+      // But since country_code is separate, we only allow digits and formatting chars
+      const sanitized = value.replace(/[^0-9\s\-()]/g, '');
+      setFormData((prev) => ({ ...prev, [name]: sanitized }));
+      validatePhone(sanitized);
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // Phone validation function
+  const validatePhone = (phoneValue) => {
+    const digitsOnly = phoneValue.replace(/\D/g, '');
+    
+    if (!digitsOnly) {
+      setPhoneError('');
+      setIsPhoneValid(false);
+      return;
+    }
+    
+    // Check for fake repeated numbers (all same digit)
+    if (/^(.)\1+$/.test(digitsOnly)) {
+      setPhoneError('Please enter a valid phone number');
+      setIsPhoneValid(false);
+      return;
+    }
+    
+    // Check length
+    if (digitsOnly.length < 7) {
+      setPhoneError('Phone number must contain at least 7 digits');
+      setIsPhoneValid(false);
+      return;
+    }
+    
+    if (digitsOnly.length > 15) {
+      setPhoneError('Phone number must not exceed 15 digits');
+      setIsPhoneValid(false);
+      return;
+    }
+    
+    setPhoneError('');
+    setIsPhoneValid(true);
+  };
+
+  // Get sanitized phone (digits only) for submission
+  const getSanitizedPhone = () => {
+    return formData.phone.replace(/\D/g, '');
+  };
+
+  const handleLotterySelectionChange = (lottery) => {
+    setFormData((prev) => {
+      const current = prev.lottery_selections;
+      const isSelected = current.includes(lottery);
+      return {
+        ...prev,
+        lottery_selections: isSelected
+          ? current.filter(l => l !== lottery)
+          : [...current, lottery]
+      };
+    });
+  };
+
+  const handleNumberTypeChange = (type) => {
+    setFormData((prev) => {
+      const current = prev.number_types;
+      const isSelected = current.includes(type);
+      return {
+        ...prev,
+        number_types: isSelected
+          ? current.filter(t => t !== type)
+          : [...current, type]
+      };
+    });
   };
 
 
@@ -96,9 +191,19 @@ export default function Home() {
       return;
     }
 
-    // Validation: Phone (7 to 15 digits)
-    if (!/^\d{7,15}$/.test(formData.phone)) {
-      toast.error('Phone number should contain between 7 and 15 numerical values only');
+    // Validation: Phone
+    const sanitizedPhone = getSanitizedPhone();
+    if (!sanitizedPhone) {
+      toast.error('Please enter your phone number');
+      return;
+    }
+    if (sanitizedPhone.length < 7 || sanitizedPhone.length > 15) {
+      toast.error('Phone number must contain 7–15 digits');
+      return;
+    }
+    // Check for fake repeated numbers
+    if (/^(.)\1+$/.test(sanitizedPhone)) {
+      toast.error('Please enter a valid phone number');
       return;
     }
 
@@ -116,9 +221,15 @@ export default function Home() {
       return;
     }
 
-    // Validation: Amount limit
-    if (parseFloat(formData.amount) > 1000000) {
-      toast.error('The amount exceeds the maximum allowed limit of 1,000,000');
+    // Validation: Lottery Selections
+    if (formData.lottery_selections.length === 0) {
+      toast.error('Please select at least one lottery');
+      return;
+    }
+
+    // Validation: Number Types
+    if (formData.number_types.length === 0) {
+      toast.error('Please select at least one number type');
       return;
     }
 
@@ -127,8 +238,12 @@ export default function Home() {
     try {
       const dataToSubmit = {
         ...formData,
-        lottery_numbers: validNumbers
+        phone: sanitizedPhone, // Send digits-only sanitized phone
+        lottery_numbers: validNumbers,
+        // currency: '$' // Default currency if needed by backend, or remove entirely
       };
+      // Remove currency from submission as it's handled via WhatsApp
+      delete dataToSubmit.currency;
 
       await api.post('/lottery-requests', dataToSubmit);
 
@@ -142,10 +257,11 @@ export default function Home() {
         country_code: '+1',
         phone: '',
         email: '',
-        amount: '',
-        currency: '$',
+        // currency: '$', // Commented out - not needed for current flow
         lottery_type: 'Daily',
         notes: '',
+        lottery_selections: [],
+        number_types: [],
       });
       setNumbers([]);
     } catch (error) {
@@ -275,17 +391,26 @@ export default function Home() {
                         )}
                       </AnimatePresence>
                     </div>
-                    <input
-                      type="tel"
-                      name="phone"
-                      required
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-400"
-                      placeholder="1234567890"
-                    />
+                    <div className="flex-1 space-y-1">
+                      <input
+                        type="tel"
+                        name="phone"
+                        required
+                        inputMode="numeric"
+                        pattern="[0-9\s\-()]*"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:ring-4 transition-all placeholder:text-slate-400 ${
+                          phoneError 
+                            ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-200' 
+                            : 'border-slate-200 focus:border-primary focus:ring-primary/10'
+                        }`}
+                        placeholder="1234567890"
+                      />
+                      {phoneError && (
+                        <p className="text-[10px] text-rose-500 font-medium ml-1">{phoneError}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -377,59 +502,179 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
-                    Amount ({formData.currency})
-                  </label>
-                  <div className="flex gap-3">
-                    <div className="relative min-w-[120px]">
-                      <select
-                        name="currency"
-                        value={formData.currency}
-                        onChange={handleInputChange}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all appearance-none cursor-pointer text-xs h-full"
-                      >
-                        {CURRENCIES.map((c) => (
-                          <option key={c.code} value={c.code}>{c.display}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
-                        <ChevronDown size={14} />
-                      </div>
-                    </div>
-                    <input
-                      type="number"
-                      name="amount"
-                      min="0.01"
-                      step="0.01"
-                      required
-                      value={formData.amount}
-                      onChange={handleInputChange}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-400"
-                      placeholder="5.00"
-                    />
+              {/* Lottery Selection Checkboxes */}
+              <div className="space-y-3">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
+                  Select Lotteries <span className="text-rose-500">*</span>
+                </label>
+                
+                {/* Lottery Search Bar */}
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search size={16} />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Lottery Type</label>
-                  <div className="relative">
-                    <select
-                      name="lottery_type"
-                      value={formData.lottery_type}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary transition-all appearance-none cursor-pointer"
+                  <input
+                    type="text"
+                    value={lotterySearch}
+                    onChange={(e) => setLotterySearch(e.target.value)}
+                    placeholder="Search lotteries..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-primary transition-all"
+                  />
+                  {lotterySearch && (
+                    <button
+                      onClick={() => setLotterySearch('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
                     >
-                      {lotteryTypes.map((type) => (
-                        <option key={type.name} value={type.name}>{type.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400">
-                      <Plus size={16} className="rotate-45" />
-                    </div>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {availableLotteries.length === 0 ? (
+                    <p className="text-sm text-slate-400 col-span-full">Loading available lotteries...</p>
+                  ) : (
+                    (() => {
+                      const filtered = availableLotteries.filter(l => 
+                        l.toLowerCase().includes(lotterySearch.toLowerCase())
+                      );
+                      const displayLotteries = showAllLotteries || lotterySearch 
+                        ? filtered 
+                        : filtered.slice(0, INITIAL_LOTTERY_COUNT);
+                      const hasMore = filtered.length > INITIAL_LOTTERY_COUNT && !lotterySearch;
+                      
+                      return (
+                        <>
+                          {displayLotteries.map((lottery) => (
+                    <motion.button
+                      key={lottery}
+                      type="button"
+                      onClick={() => handleLotterySelectionChange(lottery)}
+                      whileTap={{ scale: 0.98 }}
+                      className={`relative p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                        formData.lottery_selections.includes(lottery)
+                          ? 'border-primary bg-primary/5'
+                          : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          formData.lottery_selections.includes(lottery)
+                            ? 'border-primary bg-primary'
+                            : 'border-slate-300'
+                        }`}>
+                          {formData.lottery_selections.includes(lottery) && (
+                            <Check size={12} className="text-white" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-bold ${
+                          formData.lottery_selections.includes(lottery) ? 'text-slate-900' : 'text-slate-600'
+                        }`}>
+                          {lottery}
+                        </span>
+                      </div>
+                    </motion.button>
+                  ))}
+                  
+                  {/* Show More Button */}
+                  {hasMore && !showAllLotteries && (
+                    <motion.button
+                      type="button"
+                      onClick={() => setShowAllLotteries(true)}
+                      whileTap={{ scale: 0.98 }}
+                      className="relative p-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 hover:border-primary hover:bg-primary/5 text-slate-500 hover:text-primary transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <Plus size={18} />
+                      <span className="text-sm font-bold">{filtered.length - INITIAL_LOTTERY_COUNT} more</span>
+                    </motion.button>
+                  )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+                
+                {/* Show Less Button (when expanded) */}
+                {showAllLotteries && availableLotteries.length > INITIAL_LOTTERY_COUNT && !lotterySearch && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllLotteries(false)}
+                    className="text-sm text-primary font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <ChevronDown size={16} className="rotate-180" /> Show less
+                  </button>
+                )}
+                {formData.lottery_selections.length === 0 && (
+                  <p className="text-[10px] text-rose-500 font-medium ml-1">Please select at least one lottery</p>
+                )}
+              </div>
+
+              {/* Number Types Checkboxes */}
+              <div className="space-y-3">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
+                  Number Types <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {NUMBER_TYPE_OPTIONS.map((type) => (
+                    <motion.button
+                      key={type}
+                      type="button"
+                      onClick={() => handleNumberTypeChange(type)}
+                      whileTap={{ scale: 0.98 }}
+                      className={`relative px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                        formData.number_types.includes(type)
+                          ? 'border-primary bg-primary/5'
+                          : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          formData.number_types.includes(type)
+                            ? 'border-primary bg-primary'
+                            : 'border-slate-300'
+                        }`}>
+                          {formData.number_types.includes(type) && (
+                            <Check size={12} className="text-white" />
+                          )}
+                        </div>
+                        <span className={`text-sm font-bold ${
+                          formData.number_types.includes(type) ? 'text-slate-900' : 'text-slate-600'
+                        }`}>
+                          {type}
+                        </span>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+                {formData.number_types.length === 0 && (
+                  <p className="text-[10px] text-rose-500 font-medium ml-1">Please select at least one number type</p>
+                )}
+              </div>
+
+              {/*
+              // Currency Selection - Commented out as payment is handled separately via WhatsApp
+              // Can be re-enabled if needed for future features
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">
+                  Preferred Currency
+                </label>
+                <div className="relative">
+                  <select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all appearance-none cursor-pointer"
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.display}</option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400">
+                    <ChevronDown size={16} />
                   </div>
                 </div>
               </div>
+              */}
 
               <div className="space-y-2">
                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Notes (Optional)</label>
@@ -483,17 +728,33 @@ export default function Home() {
                 <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
                   <span className="text-sm text-slate-500 font-medium">Phone Number</span>
                   <div className="flex items-center gap-2">
-                    <img 
-                      src={`https://flagcdn.com/w40/${COUNTRY_DATA.find(c => c.code === submittedData?.country_code)?.iso.toLowerCase()}.png`} 
+                    <img
+                      src={`https://flagcdn.com/w40/${COUNTRY_DATA.find(c => c.code === submittedData?.country_code)?.iso.toLowerCase()}.png`}
                       alt=""
                       className="w-4 h-auto rounded-sm"
                     />
                     <span className="text-sm font-black text-slate-900">{submittedData?.country_code} {submittedData?.phone}</span>
                   </div>
                 </div>
-                <div className="flex justify-between items-center pb-3 border-b border-slate-200/50">
-                  <span className="text-sm text-slate-500 font-medium">Total Amount</span>
-                  <span className="text-lg font-black text-primary">{submittedData?.currency}{parseFloat(submittedData?.amount).toFixed(2)}</span>
+                <div className="pb-3 border-b border-slate-200/50">
+                  <span className="text-sm text-slate-500 font-medium block mb-2">Selected Lotteries</span>
+                  <div className="flex flex-wrap gap-2">
+                    {submittedData?.lottery_selections?.map((lottery, i) => (
+                      <span key={i} className="px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-sm font-bold rounded-xl">
+                        {lottery}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="pb-3 border-b border-slate-200/50">
+                  <span className="text-sm text-slate-500 font-medium block mb-2">Number Types</span>
+                  <div className="flex flex-wrap gap-2">
+                    {submittedData?.number_types?.map((type, i) => (
+                      <span key={i} className="px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-sm font-bold rounded-xl">
+                        {type}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm text-slate-500 font-medium block mb-3">Numbers Entered</span>
