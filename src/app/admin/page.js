@@ -119,7 +119,7 @@ export default function AdminDashboard() {
 
   const fetchLotteryTypes = useCallback(async () => {
     try {
-      const response = await api.get('/admin/lottery-types');
+      const response = await api.get('/lottery-types');
       setLotteryTypes(response.data);
     } catch (error) {
       toast.error('Failed to fetch lottery types');
@@ -759,16 +759,21 @@ Status: ${req.status}
                       {/* Status */}
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</label>
-                        <select
-                          name="status"
-                          value={filters.status}
-                          onChange={handleFilterChange}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="pending">Pending</option>
-                          <option value="processed">Processed</option>
-                        </select>
+                        <div className="relative">
+                          <select
+                            name="status"
+                            value={filters.status}
+                            onChange={handleFilterChange}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer pr-10"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="processed">Processed</option>
+                          </select>
+                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                            <ChevronDown size={16} />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Date Start */}
@@ -808,18 +813,24 @@ Status: ${req.status}
                       {/* Lottery Type */}
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lottery Type</label>
-                        <select
-                          name="lottery_type"
-                          value={filters.lottery_type}
-                          onChange={handleFilterChange}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
-                        >
-                          <option value="all">All Types</option>
-                          <option value="Daily">Daily</option>
-                          <option value="Weekly">Weekly</option>
-                          <option value="Special">Special</option>
-                          <option value="Mega">Mega Jackpot</option>
-                        </select>
+                        <div className="relative">
+                          <select
+                            name="lottery_type"
+                            value={filters.lottery_type}
+                            onChange={handleFilterChange}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer pr-10"
+                          >
+                            <option value="all">All Types</option>
+                            {lotteryTypes.map((type) => (
+                              <option key={type.id} value={type.name}>
+                                {type.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                            <ChevronDown size={16} />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Clear Filters */}
