@@ -541,7 +541,7 @@ Status: ${req.status}
   return (
     <div className="min-h-screen bg-background">
       {/* Top Navbar */}
-      <nav className="glass-panel sticky top-0 z-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center rounded-none bg-white/80">
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <Ticket className="text-primary" />
