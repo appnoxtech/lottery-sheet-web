@@ -570,7 +570,7 @@ export default function Home() {
                         <span className={`text-sm font-bold ${
                           formData.lottery_selections.includes(lottery) ? 'text-slate-900' : 'text-slate-600'
                         }`}>
-                          {lottery}
+                          {lottery.toUpperCase()}
                         </span>
                       </div>
                     </motion.button>

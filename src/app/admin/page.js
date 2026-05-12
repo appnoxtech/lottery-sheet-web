@@ -7,13 +7,102 @@ import {
   LogOut, CheckCircle, Clock, Filter, Ticket,
   ChevronDown, Download, FileText, Table as TableIcon,
   FileSpreadsheet, CheckSquare, Square, Trash2, X,
-  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus, Languages, RefreshCw
+  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus, Languages, RefreshCw, GripVertical, Check
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+
+function SortableLotteryType({ type, onDelete }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: type.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.8 : 1,
+    scale: isDragging ? 1.05 : 1,
+    zIndex: isDragging ? 50 : 1,
+    boxShadow: isDragging ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : 'none',
+  };
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      whileHover={{ scale: 1.02 }}
+      className={`flex items-center justify-between p-5 rounded-2xl border transition-all cursor-move ${
+        isDragging 
+          ? 'bg-primary/10 border-primary shadow-2xl' 
+          : 'bg-slate-50 border-slate-100 group hover:border-primary/30 hover:shadow-lg'
+      }`}
+    >
+      <div className="flex items-center gap-4">
+        <button
+          {...attributes}
+          {...listeners}
+          className={`p-2 rounded-lg transition-all touch-none ${
+            isDragging 
+              ? 'text-primary bg-primary/20' 
+              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <GripVertical size={20} />
+        </button>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all ${
+          isDragging 
+            ? 'bg-primary text-white' 
+            : 'bg-white border border-slate-200 text-primary'
+        }`}>
+          <Ticket size={20} />
+        </div>
+        <span className={`font-black uppercase tracking-wider transition-all ${
+          isDragging ? 'text-primary' : 'text-slate-900'
+        }`}>
+          {type.name}
+        </span>
+      </div>
+      <button
+        onClick={() => onDelete(type.id)}
+        className={`p-3 rounded-xl transition-all ${
+          isDragging 
+            ? 'text-rose-500 bg-rose-50' 
+            : 'text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100'
+        }`}
+      >
+        <Trash2 size={20} />
+      </button>
+    </motion.div>
+  );
+}
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -33,8 +122,19 @@ export default function AdminDashboard() {
   const [isSendingShare, setIsSendingShare] = useState(false);
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
   const [lotteryTypes, setLotteryTypes] = useState([]);
+  const [originalLotteryTypes, setOriginalLotteryTypes] = useState([]);
   const [newTypeName, setNewTypeName] = useState('');
   const [isAddingType, setIsAddingType] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Advanced Filters State
   const [filters, setFilters] = useState({
@@ -121,6 +221,8 @@ export default function AdminDashboard() {
     try {
       const response = await api.get('/lottery-types');
       setLotteryTypes(response.data);
+      setOriginalLotteryTypes(response.data);
+      setHasUnsavedChanges(false);
     } catch (error) {
       toast.error('Failed to fetch lottery types');
     }
@@ -152,6 +254,52 @@ export default function AdminDashboard() {
     } catch (error) {
       toast.error('Failed to delete type');
     }
+  };
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      const oldIndex = lotteryTypes.findIndex((type) => type.id === active.id);
+      const newIndex = lotteryTypes.findIndex((type) => type.id === over.id);
+
+      const newLotteryTypes = arrayMove(lotteryTypes, oldIndex, newIndex);
+      setLotteryTypes(newLotteryTypes);
+      setHasUnsavedChanges(true);
+      
+      // Show success feedback for the drag operation
+      toast.success('Order updated. Click Save to apply changes.');
+    }
+  };
+
+  const handleSaveOrder = async () => {
+    setIsSavingOrder(true);
+    
+    // Prepare the order payload for the API
+    const orders = lotteryTypes.map((type, index) => ({
+      id: type.id,
+      sort_order: index + 1
+    }));
+
+    try {
+      await api.post('/admin/lottery-types/reorder', { orders });
+      setOriginalLotteryTypes(lotteryTypes);
+      setHasUnsavedChanges(false);
+      toast.success('Lottery types order saved successfully');
+    } catch (error) {
+      toast.error('Failed to save order');
+      // Revert to original order if API call fails
+      setLotteryTypes(originalLotteryTypes);
+      setHasUnsavedChanges(false);
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const handleCancelOrder = () => {
+    setLotteryTypes(originalLotteryTypes);
+    setHasUnsavedChanges(false);
+    toast.info('Order changes cancelled');
   };
 
   const fetchCurrentUser = useCallback(async () => {
@@ -1101,36 +1249,71 @@ Status: ${req.status}
                 </h3>
               </div>
               <div className="p-8 pt-4">
-                <div className="grid grid-cols-1 gap-3">
-                  {lotteryTypes.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 font-medium italic">
-                      No lottery types defined yet.
-                    </div>
-                  ) : (
-                    lotteryTypes.map((type, i) => (
-                      <motion.div
-                        key={type.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-primary/30 transition-all"
+                {lotteryTypes.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 font-medium italic">
+                    No lottery types defined yet.
+                  </div>
+                ) : (
+                  <>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={lotteryTypes.map(type => type.id)}
+                        strategy={verticalListSortingStrategy}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-primary shadow-sm">
-                            <Ticket size={20} />
-                          </div>
-                          <span className="font-black text-slate-900 uppercase tracking-wider">{type.name}</span>
+                        <div className="grid grid-cols-1 gap-3">
+                          {lotteryTypes.map((type) => (
+                            <SortableLotteryType
+                              key={type.id}
+                              type={type}
+                              onDelete={handleDeleteType}
+                            />
+                          ))}
                         </div>
-                        <button
-                          onClick={() => handleDeleteType(type.id)}
-                          className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                      </SortableContext>
+                    </DndContext>
+                    
+                    {/* Save/Cancel buttons that appear when there are unsaved changes */}
+                    <AnimatePresence>
+                      {hasUnsavedChanges && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="mt-6 flex gap-3 justify-end"
                         >
-                          <Trash2 size={20} />
-                        </button>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
+                          <button
+                            onClick={handleCancelOrder}
+                            disabled={isSavingOrder}
+                            className="px-6 py-3 rounded-2xl border-2 border-slate-300 text-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveOrder}
+                            disabled={isSavingOrder}
+                            className="px-6 py-3 bg-primary hover:opacity-90 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {isSavingOrder ? (
+                              <>
+                                <RefreshCw size={16} className="animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Check size={16} />
+                                Save Order
+                              </>
+                            )}
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
               </div>
             </div>
           </div>
