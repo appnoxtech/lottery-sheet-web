@@ -45,6 +45,7 @@ export default function Home() {
   const COUNTRY_CODES = COUNTRY_DATA;
 
   const [numbers, setNumbers] = useState([]);
+  const [currentNumber, setCurrentNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
@@ -174,6 +175,14 @@ export default function Home() {
 
   const removeNumberField = (index) => {
     setNumbers(numbers.filter((_, i) => i !== index));
+  };
+
+  const handleAddNumber = (val) => {
+    const trimmed = val.trim();
+    if (trimmed && /^\d+$/.test(trimmed)) {
+      setNumbers([...numbers, trimmed]);
+      setCurrentNumber('');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -469,36 +478,50 @@ export default function Home() {
                       ))}
                     </AnimatePresence>
                     
-                    <input
-                      id="number-input"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className="flex-1 min-w-[120px] bg-transparent border-none focus:outline-none text-sm font-bold text-slate-900 placeholder:text-slate-400"
-                      placeholder={numbers.length === 0 ? "Type a number and press Enter..." : "Add more..."}
-                      onKeyDown={(e) => {
-                        const isNumeric = /^[0-9]$/.test(e.key);
-                        const isDelimiter = e.key === 'Enter' || e.key === ',' || e.key === ' ';
-                        const isControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key);
-
-                        if (isDelimiter) {
-                          e.preventDefault();
-                          const val = e.target.value.trim();
-                          if (val && /^\d+$/.test(val)) {
-                            setNumbers([...numbers, val]);
-                            e.target.value = '';
+                    <div className="flex-1 flex items-center gap-2 min-w-[120px]">
+                      <input
+                        id="number-input"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={currentNumber}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (/^\d*$/.test(val)) {
+                            setCurrentNumber(val);
                           }
-                        } else if (e.key === 'Backspace' && !e.target.value && numbers.length > 0) {
-                          removeNumberField(numbers.length - 1);
-                        } else if (!isNumeric && !isControl) {
-                          e.preventDefault();
-                        }
-                      }}
-                    />
+                        }}
+                        className="flex-1 bg-transparent border-none focus:outline-none text-sm font-bold text-slate-900 placeholder:text-slate-400 min-w-[80px]"
+                        placeholder={numbers.length === 0 ? "Type a number..." : "Add..."}
+                        onKeyDown={(e) => {
+                          const isDelimiter = e.key === 'Enter' || e.key === ',' || e.key === ' ';
+                          if (isDelimiter) {
+                            e.preventDefault();
+                            handleAddNumber(currentNumber);
+                          } else if (e.key === 'Backspace' && !currentNumber && numbers.length > 0) {
+                            removeNumberField(numbers.length - 1);
+                          }
+                        }}
+                      />
+                      {currentNumber && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddNumber(currentNumber);
+                            document.getElementById('number-input')?.focus();
+                          }}
+                          className="bg-primary hover:bg-primary/95 text-white rounded-xl px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                        >
+                          <Plus size={12} strokeWidth={3} />
+                          Add
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-400 font-medium italic ml-1">
-                  Tip: Press <span className="font-bold text-slate-500">Enter</span>, <span className="font-bold text-slate-500">Space</span>, or <span className="font-bold text-slate-500">Comma</span> to add a number.
+                  Tip: Press <span className="font-bold text-slate-500">Enter</span>, <span className="font-bold text-slate-500">Space</span>, <span className="font-bold text-slate-500">Comma</span>, or tap <span className="font-bold text-slate-500">Add</span> to add a number.
                 </p>
               </div>
 
