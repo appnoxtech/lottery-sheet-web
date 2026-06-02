@@ -581,7 +581,7 @@ export default function Home() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                        <div className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-all ${
                           formData.lottery_selections.includes(lottery)
                             ? 'border-primary bg-primary'
                             : 'border-slate-300'
