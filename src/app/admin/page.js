@@ -7,7 +7,7 @@ import {
   LogOut, CheckCircle, Clock, Filter, Ticket,
   ChevronDown, Download, FileText, Table as TableIcon,
   FileSpreadsheet, CheckSquare, Square, Trash2, X,
-  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus, Languages, RefreshCw, GripVertical, Check
+  Search, Calendar, DollarSign, FilterX, Share2, Send, Mail, Plus, Languages, RefreshCw, GripVertical, Check, MessageSquare, Phone, Save, AlertCircle
 } from 'lucide-react';
 import {
   DndContext,
@@ -127,6 +127,11 @@ export default function AdminDashboard() {
   const [isAddingType, setIsAddingType] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+  // WhatsApp Profile State
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [isSavingWhatsapp, setIsSavingWhatsapp] = useState(false);
+  const [whatsappSaved, setWhatsappSaved] = useState(false);
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -306,10 +311,36 @@ export default function AdminDashboard() {
     try {
       const response = await api.get('/user');
       setCurrentUser(response.data);
+      // Pre-fill WhatsApp number if already saved
+      if (response.data?.whatsapp_number) {
+        setWhatsappNumber(response.data.whatsapp_number);
+      }
     } catch (error) {
       console.error('Failed to fetch user', error);
     }
   }, []);
+
+  const handleSaveWhatsapp = async (e) => {
+    e.preventDefault();
+    setIsSavingWhatsapp(true);
+    setWhatsappSaved(false);
+    try {
+      const response = await api.patch('/admin/profile', {
+        whatsapp_number: whatsappNumber || null,
+      });
+      setCurrentUser(response.data.user);
+      setWhatsappSaved(true);
+      toast.success('WhatsApp number saved! You will now receive notifications.');
+      setTimeout(() => setWhatsappSaved(false), 3000);
+    } catch (error) {
+      const msg = error.response?.data?.errors?.whatsapp_number?.[0]
+        || error.response?.data?.message
+        || 'Failed to save WhatsApp number';
+      toast.error(msg);
+    } finally {
+      setIsSavingWhatsapp(false);
+    }
+  };
 
   const fetchRequests = useCallback(async () => {
     setIsLoading(true);
@@ -360,8 +391,10 @@ export default function AdminDashboard() {
       fetchPendingUsers();
     } else if (activeTab === 'settings') {
       fetchLotteryTypes();
+    } else if (activeTab === 'profile') {
+      fetchCurrentUser();
     }
-  }, [activeTab, fetchRequests, fetchPendingUsers, fetchLotteryTypes]);
+  }, [activeTab, fetchRequests, fetchPendingUsers, fetchLotteryTypes, fetchCurrentUser]);
 
   const handleApproveUser = async (id) => {
     try {
@@ -706,6 +739,12 @@ Status: ${req.status}
               className={`px-6 py-2 rounded-2xl text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'settings' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-slate-900'}`}
             >
               Lottery Types
+            </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`px-6 py-2 rounded-2xl text-sm font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'profile' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-slate-900'}`}
+            >
+              <MessageSquare size={14} /> WhatsApp
             </button>
             {isSuperAdmin && (
               <button
@@ -1211,6 +1250,122 @@ Status: ${req.status}
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        ) : activeTab === 'profile' ? (
+          /* ── WhatsApp Notification Settings ── */
+          <div className="space-y-8 max-w-2xl">
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+                <span className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center">
+                  <MessageSquare size={22} className="text-primary" />
+                </span>
+                WhatsApp Notifications
+              </h1>
+              <p className="text-slate-500 mt-2 font-medium">
+                Save your WhatsApp number to receive an instant message whenever a customer submits a new lottery request.
+              </p>
+            </div>
+
+            {/* Info card */}
+            <div className="flex items-start gap-4 p-5 bg-primary/5 border border-primary/20 rounded-2xl">
+              <AlertCircle size={20} className="text-primary mt-0.5 shrink-0" />
+              <div className="text-sm text-primary-dark font-medium leading-relaxed">
+                <p className="font-bold mb-1">How it works</p>
+                <p>When a customer fills the lottery form, the WATI WhatsApp Business API will send a notification message directly to your WhatsApp number. Enter your number below with country code (e.g. <strong>+919876543210</strong>).</p>
+              </div>
+            </div>
+
+            {/* WhatsApp Number Form */}
+            <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-2xl">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <Phone size={16} className="text-primary" /> Your WhatsApp Number
+              </h3>
+
+              <form onSubmit={handleSaveWhatsapp} className="space-y-6">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                    <MessageSquare size={20} className="text-primary/70" />
+                  </div>
+                  <input
+                    id="whatsapp-number-input"
+                    type="tel"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    placeholder="+919876543210"
+                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-primary rounded-2xl pl-14 pr-4 py-4 text-slate-900 font-bold text-lg focus:outline-none transition-all placeholder:text-slate-300 placeholder:font-normal"
+                  />
+                </div>
+
+                <p className="text-xs text-slate-400 font-medium pl-1">
+                  Include country code without spaces or dashes. Example: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">+919876543210</code>
+                </p>
+
+                {/* Current status */}
+                {currentUser?.whatsapp_number && (
+                  <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                    <CheckCircle size={18} className="text-primary shrink-0" />
+                    <div className="text-sm">
+                      <span className="text-primary-dark font-semibold">Active: </span>
+                      <span className="text-primary-dark font-bold">{currentUser.whatsapp_number}</span>
+                      <span className="text-primary ml-2">— receiving notifications</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-4">
+                  <button
+                    type="submit"
+                    id="save-whatsapp-btn"
+                    disabled={isSavingWhatsapp}
+                    className="flex-1 flex items-center justify-center gap-3 py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-primary/25 transition-all disabled:opacity-50"
+                  >
+                    {isSavingWhatsapp ? (
+                      <><div className="animate-spin rounded-full h-5 w-5 border-4 border-white/20 border-t-white" /> Saving...</>
+                    ) : whatsappSaved ? (
+                      <><Check size={18} /> Saved!</>
+                    ) : (
+                      <><Save size={18} /> Save Number</>
+                    )}
+                  </button>
+
+                  {whatsappNumber && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWhatsappNumber('');
+                        // Clear by saving null
+                        api.patch('/admin/profile', { whatsapp_number: null })
+                          .then(() => {
+                            setCurrentUser(prev => ({ ...prev, whatsapp_number: null }));
+                            toast.success('WhatsApp number removed. You will no longer receive WhatsApp notifications.');
+                          })
+                          .catch(() => toast.error('Failed to remove number'));
+                      }}
+                      className="px-6 py-4 rounded-2xl border-2 border-slate-200 text-slate-500 hover:border-red-200 hover:text-red-500 font-black uppercase tracking-widest text-[11px] transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Preview of what the WhatsApp message looks like */}
+            <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-xl">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
+                <MessageSquare size={16} className="text-primary" /> Message Preview
+              </h3>
+              <div className="bg-primary/5 rounded-2xl p-5 space-y-1 font-mono text-sm text-slate-800 border border-primary/10 max-w-sm">
+                <p className="font-bold text-primary-dark mb-3">📋 New Lottery Request</p>
+                <p>👤 <span className="font-semibold">Customer:</span> John Doe</p>
+                <p>📞 <span className="font-semibold">Phone:</span> +1 555-0101</p>
+                <p>📧 <span className="font-semibold">Email:</span> john@example.com</p>
+                <p>🎟️ <span className="font-semibold">Lottery:</span> Mega Jackpot</p>
+                <p>🔢 <span className="font-semibold">Numbers:</span> 12, 34, 56, 78</p>
+                <p className="pt-2 text-primary text-xs">⏳ Status: <strong>Pending</strong></p>
+              </div>
+              <p className="text-xs text-slate-400 mt-4 font-medium">* Actual message content depends on your WATI approved template.</p>
             </div>
           </div>
         ) : (
