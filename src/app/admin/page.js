@@ -107,6 +107,9 @@ function SortableLotteryType({ type, onDelete }) {
 export default function AdminDashboard() {
   const router = useRouter();
   const [requests, setRequests] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('requests'); // 'requests' or 'users'
@@ -352,8 +355,19 @@ export default function AdminDashboard() {
         }
       });
 
+      params.append('page', currentPage);
+      params.append('per_page', 50);
+
       const response = await api.get(`/admin/requests?${params.toString()}`);
-      setRequests(response.data.data);
+      
+      if (response.data.current_page !== undefined) {
+        setRequests(response.data.data);
+        setCurrentPage(response.data.current_page);
+        setTotalPages(response.data.last_page);
+        setTotalRecords(response.data.total);
+      } else {
+        setRequests(response.data.data || response.data);
+      }
       setSelectedIds(new Set());
     } catch (error) {
       if (error.response?.status === 401) {
@@ -366,7 +380,7 @@ export default function AdminDashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, router]);
+  }, [filters, currentPage, router]);
 
   const fetchPendingUsers = useCallback(async () => {
     setIsUserLoading(true);
@@ -409,6 +423,7 @@ export default function AdminDashboard() {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
@@ -419,6 +434,7 @@ export default function AdminDashboard() {
       end_date: '',
       lottery_type: 'all'
     });
+    setCurrentPage(1);
   };
 
   const handleLogout = async () => {
@@ -1183,6 +1199,48 @@ Status: ${req.status}
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 bg-white border-t border-slate-200">
+                  <div className="text-sm text-slate-500 font-medium mb-4 sm:mb-0">
+                    Showing <span className="font-bold text-slate-900">{((currentPage - 1) * 50) + 1}</span> to <span className="font-bold text-slate-900">{Math.min(currentPage * 50, totalRecords)}</span> of <span className="font-bold text-slate-900">{totalRecords}</span> entries
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {[...Array(totalPages)].map((_, i) => {
+                        if (totalPages > 7 && i !== 0 && i !== totalPages - 1 && Math.abs(currentPage - (i + 1)) > 1) {
+                          if (i === 1 || i === totalPages - 2) return <span key={i} className="px-2 text-slate-400">...</span>;
+                          return null;
+                        }
+                        return (
+                          <button
+                            key={i + 1}
+                            onClick={() => setCurrentPage(i + 1)}
+                            className={`w-8 h-8 rounded-lg text-sm font-bold flex items-center justify-center transition-all ${currentPage === i + 1 ? 'bg-primary text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+                          >
+                            {i + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : activeTab === 'users' ? (
