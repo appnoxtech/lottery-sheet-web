@@ -1131,6 +1131,15 @@ Status: ${req.status}
                                   {num}
                                 </span>
                               ))}
+                              {request.number_types && request.number_types.length > 0 && (
+                                <div className="w-full mt-2 flex flex-wrap gap-1.5">
+                                  {request.number_types.map((type, i) => (
+                                    <span key={`type-${i}`} className="px-3 py-1 bg-amber-50 text-amber-600 font-bold text-[10px] rounded-xl border border-amber-100/50">
+                                      {type}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {request.notes && (
                                 <div className="w-full text-[10px] text-slate-400 mt-2 flex items-start gap-1 font-medium italic">
                                   <span className="text-primary not-italic font-black">Note:</span> {request.notes}
